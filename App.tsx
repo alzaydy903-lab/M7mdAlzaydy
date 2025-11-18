@@ -16,7 +16,8 @@ import {
   Image as ImageIcon,
   Star,
   Loader2,
-  Upload
+  Upload,
+  RefreshCw
 } from 'lucide-react';
 import { ACHIEVEMENTS, SKILLS, HOBBIES, GOALS, TESTIMONIALS } from './constants';
 import { Achievement, Skill, Goal, Testimonial } from './types';
@@ -828,6 +829,8 @@ function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingTakesLong, setLoadingTakesLong] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   
   // Combined Data State
   const [data, setData] = useState<AppData>({
@@ -846,7 +849,18 @@ function App() {
 
   // --- Data Fetching & Seeding ---
   useEffect(() => {
+    let mounted = true;
     const initData = async () => {
+      setLoading(true);
+      setLoadingTakesLong(false);
+
+      // Timeout to show "Takes long" message
+      const timer = setTimeout(() => {
+        if (mounted && loading) {
+          setLoadingTakesLong(true);
+        }
+      }, 5000);
+
       try {
         // 1. Content Helper
         const fetchContent = async () => {
@@ -909,23 +923,29 @@ function App() {
           fetchOrSeed('testimonials', TESTIMONIALS)
         ]);
 
-        setData({
-          content: contentRes,
-          achievements: achievementsRes,
-          skills: skillsRes,
-          hobbies: hobbiesRes,
-          goals: goalsRes,
-          testimonials: testimonialsRes
-        });
+        if (mounted) {
+          setData({
+            content: contentRes,
+            achievements: achievementsRes,
+            skills: skillsRes,
+            hobbies: hobbiesRes,
+            goals: goalsRes,
+            testimonials: testimonialsRes
+          });
+          setLoading(false);
+        }
       } catch (error) {
         console.error("Error fetching data:", error);
+        if (mounted) setLoadingTakesLong(true); // Show retry on error too
       } finally {
-        setLoading(false);
+        clearTimeout(timer);
       }
     };
 
     initData();
-  }, []);
+
+    return () => { mounted = false; };
+  }, [retryCount]);
 
   // --- CRUD Operations ---
 
@@ -981,8 +1001,21 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
         <Loader2 className="text-cyan-400 animate-spin" size={48} />
+        <p className="text-gray-400 animate-pulse">جاري تحميل البيانات...</p>
+        {loadingTakesLong && (
+          <div className="flex flex-col items-center gap-2 mt-4">
+             <p className="text-red-400 text-sm">التحميل يستغرق وقتاً أطول من المعتاد.</p>
+             <button 
+               onClick={() => setRetryCount(c => c + 1)}
+               className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
+             >
+               <RefreshCw size={16} />
+               <span>إعادة المحاولة</span>
+             </button>
+          </div>
+        )}
       </div>
     );
   }
